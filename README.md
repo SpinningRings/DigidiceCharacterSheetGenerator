@@ -1,2 +1,2 @@
 # DigidiceCharacterSheetGenerator
-I'm DMing a game of digidice and this is my attempt at automating the process of coming up with NPC character sheets.
+I'm DMing a game of DigiDice, a fan-made Digimon TTRPG, and this is my attempt at automating the process of coming up with NPC character sheets.  It makes sure the character is bare minimum rules compliant, then exports a simple character sheet to a text file.  Main advantage being that I don't have to keep track of how many points I'm supposed to have for a given purpose nor how many I've already spent.
