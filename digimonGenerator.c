@@ -4,12 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <stdbool.h>
+#include <stdint.h>
 
 #define NAME_SIZE 31
-#define FILE_NAME_SIZE 81
+#define FILE_NAME_SIZE (NAME_SIZE + 50)
 #define DESCRIPTION_SIZE 151
-#define FILE_SIZE 8000
+#define FILE_PADDING 2000
 #define MAX_DIE_TYPE 12
 #define BONUS_DRAWBACK_SIZE 51
 #define TEMP_ARRAY_SIZE 401
@@ -62,6 +62,17 @@ typedef struct digimon{
     skill * skills;
 } digimon;
 
+typedef struct charSheet{
+    char * text;
+    size_t currentLength;
+    size_t needed;
+    size_t allocated;
+    size_t bitesWritten;
+}charSheet;
+
+charSheet characterSheet = {0};
+
+char defaultName[] = "unnamed"; 
 
 void nameCharacter(digimon * partner);
 void determinePoints(digimon * partner);
@@ -74,6 +85,10 @@ void assignSkills(digimon * partner);
 char * clearNewline(char * line);
 char * buildCharacterSheet(digimon * partner);
 void printDigimon(digimon * partner);
+void checkSpaceNeeded(charSheet * x);
+void safeConcat(charSheet * x, char * line);
+//ToDo write function to dynamically allocate memory for segments of character sheet without me having to write it each time
+//something like void allocateSpaceForText(space * x, char * text);
 
 int main(){
 
@@ -88,12 +103,11 @@ int main(){
     printf("%s", "Input digimon evolutionary stage as an integer (1, 2, 3, 4, 5, or 6):\t");
     scanf("%hu", &partner.stage);
     int c = 0;
-    while(c = (getchar()) != '\n' && c != EOF);
+    while((c = getchar()) != '\n' && c != EOF);
     while(partner.stage < 1 || partner.stage > 6){
         printf("Invalid input.  Please input a number between 1 (for fresh / baby 1) and 6 (for mega / ultimate):\t");
         scanf("%hu", &partner.stage);
-        int c = 0;
-        while(c = (getchar()) != '\n' && c != EOF);
+        while((c = getchar()) != '\n' && c != EOF);
     }
     determinePoints(&partner);
     nameCharacter(&partner);
@@ -109,19 +123,24 @@ int main(){
     FILE * fPtr;
     char fileName[FILE_NAME_SIZE] = {0};
     size_t j = 0;
-    for (size_t i = 0; i < strlen(partner.name); i++){
+    for (size_t i = 0; i < strlen(partner.name) && j < (FILE_NAME_SIZE - 5); i++){
         if (isalnum(partner.name[i])){
             fileName[j++] = partner.name[i];
         }
     }
-    fileName[j] = '\0';
-    strncat(fileName, ".txt", FILE_NAME_SIZE);
+    if(j != 0){
+        fileName[j] = '\0';
+    }
+    else{
+        strcpy(fileName, defaultName);
+    }
+    strncat(fileName, ".txt", FILE_NAME_SIZE - strlen(fileName) - 1);
     fPtr = fopen(fileName, "w");
     if(!fPtr){
         exit(1);
     }
-    char * characterSheet = buildCharacterSheet(&partner);
-    fprintf(fPtr, "%s", characterSheet);
+    characterSheet.text = buildCharacterSheet(&partner);
+    fprintf(fPtr, "%s", characterSheet.text);
     fclose(fPtr);
     free(partner.name);
     if(partner.specialAttacks){
@@ -153,7 +172,7 @@ int main(){
         }
         free(partner.skills);
     }
-    free(characterSheet);
+    free(characterSheet.text);
     return 0;
 }
 
@@ -200,11 +219,19 @@ void nameCharacter(digimon * partner){
     clearNewline(partner->name);
     char sentinel = 'n';
     do{
+        char tempSentinel[NAME_SIZE];
         printf("You typed: %s.\nIs that correct? Y for yes:\t", partner->name);
-        scanf("%c", &sentinel);
-        sentinel = (char) toupper(sentinel);
-        int c = 0;
-        while(c = (getchar()) != '\n' && c != EOF);
+        fgets(tempSentinel, NAME_SIZE, stdin);
+        if (strlen(tempSentinel) > 0){
+            sentinel = (char) toupper(tempSentinel[0]);
+        }
+        else{
+            exit(EXIT_FAILURE);
+        }
+        if (strchr(tempSentinel, '\n') == NULL) {
+            int c;
+            while ((c = getchar()) != '\n' && c != EOF);
+        }
         if(sentinel != 'Y'){
             printf("%s", "Input digimon name:\t");
             fgets(partner->name, NAME_SIZE, stdin);
@@ -214,12 +241,17 @@ void nameCharacter(digimon * partner){
 }
 
 void incrementAttributes(digimon * partner){
-    char atribute[TEMP_ARRAY_SIZE];
+    char attribute[TEMP_ARRAY_SIZE];
     while (partner->attributePoints > 0){
-        printf("%s", "Increment atribute?  Heart, Brawn, Grace, Wits or Print:\t");
-        fgets(atribute, TEMP_ARRAY_SIZE, stdin);
-        atribute[0] = (char) toupper(atribute[0]);
-        switch (atribute[0])
+        printf("%s", "Increment attribute?  Heart, Brawn, Grace, Wits or Print:\t");
+        fgets(attribute, TEMP_ARRAY_SIZE, stdin);
+        if(*attribute){
+            attribute[0] = (char) toupper(attribute[0]);
+        }
+        else{
+            exit(EXIT_FAILURE);
+        }
+        switch (attribute[0])
         {
         case 'H':
             partner->dgmnAttributes.heart += 2;
@@ -267,8 +299,13 @@ void spendBonusPoints(digimon * partner){
     while (partner->bonusPoints > 0){
         printf("%s", "Spend bonus points: Special, Ability, Skill or Gear?\t");
         fgets(buffer, TEMP_ARRAY_SIZE, stdin);
-        buffer[0] = (char) toupper(buffer[0]);
-        buffer[1] = (char) toupper(buffer[1]);
+        if (*buffer){
+            buffer[0] = (char) toupper(buffer[0]);
+            buffer[1] = (char) toupper(buffer[1]);
+        }
+        else{
+            exit(EXIT_FAILURE);
+        }
         switch (buffer[0])
         {
         case 'S':
@@ -335,11 +372,6 @@ void spendBonusPoints(digimon * partner){
             partner->skills[i] = (skill) {0};
         }
     }
-    if(partner->specialAttacks){
-        for (unsigned short i = 0; i < partner->numSpecialAttacks; i++){
-            partner->specialAttacks[i] = (specialAttack) {0};
-        }
-    }
 }
 
 void buildSpecial(digimon * partner){
@@ -379,20 +411,25 @@ void buildSpecial(digimon * partner){
         partner->specialAttacks[i].power = 2;
         printf("Name special attack number %hd, 30 characters or less:\t", i + 1);
         fgets(partner->specialAttacks[i].name, NAME_SIZE, stdin);
-        partner->specialAttacks[i].name = clearNewline(partner->specialAttacks[i].name);
+        clearNewline(partner->specialAttacks[i].name);
         printf("Describe special attack number %hd, 100 characters or less:\t", i + 1);
         fgets(partner->specialAttacks[i].description, DESCRIPTION_SIZE, stdin);
-        partner->specialAttacks[i].description = clearNewline(partner->specialAttacks[i].description);
+        clearNewline(partner->specialAttacks[i].description);
         printf("List special attack number %hd bonus(es), 50 characters or less:\t", i + 1);
         fgets(partner->specialAttacks[i].bonuses, BONUS_DRAWBACK_SIZE, stdin);
-        partner->specialAttacks[i].bonuses = clearNewline(partner->specialAttacks[i].bonuses);
+        clearNewline(partner->specialAttacks[i].bonuses);
         printf("List special attack number %hd drawback(s) if applicable, 50 characters or less:\t", i + 1);
         fgets(partner->specialAttacks[i].drawbacks, BONUS_DRAWBACK_SIZE, stdin);
-        partner->specialAttacks[i].drawbacks = clearNewline(partner->specialAttacks[i].drawbacks);
+        clearNewline(partner->specialAttacks[i].drawbacks);
         for(unsigned short j = 0; j < partner->specialAttackPoints; j++){
             printf("%s", "Augment Accuracy or Power?\t");
             fgets(attackStat, TEMP_ARRAY_SIZE, stdin);
-            attackStat[0] = (char) toupper(attackStat[0]);
+            if (attackStat){
+                attackStat[0] = (char) toupper(attackStat[0]);
+            }
+            else{
+                exit(EXIT_FAILURE);
+            }
             switch (attackStat[0])
             {
             case 'A':
@@ -421,10 +458,10 @@ void assignAbilities(digimon * partner){
         }
         printf("Name ability #%hd, 30 characters or less:\t", i + 1);
         fgets(partner->abilities[i].name, NAME_SIZE, stdin);
-        partner->abilities[i].name = clearNewline(partner->abilities[i].name);
+        clearNewline(partner->abilities[i].name);
         printf("Describe ability #%hd, 100 characters or less:\t", i + 1);
         fgets(partner->abilities[i].description, DESCRIPTION_SIZE, stdin);
-        partner->abilities[i].description = clearNewline(partner->abilities[i].description);
+        clearNewline(partner->abilities[i].description);
     }
 }
 
@@ -440,10 +477,10 @@ void assignGear(digimon * partner){
         }
         printf("Name gear #%hd, 30 characters or less:\t", i + 1);
         fgets(partner->dgmnGear[i].name, NAME_SIZE, stdin);
-        partner->dgmnGear[i].name = clearNewline(partner->dgmnGear[i].name);
+        clearNewline(partner->dgmnGear[i].name);
         printf("Describe gear #%hd, 100 characters or less:\t", i + 1);
         fgets(partner->dgmnGear[i].description, DESCRIPTION_SIZE, stdin);
-        partner->dgmnGear[i].description = clearNewline(partner->dgmnGear[i].description);
+        clearNewline(partner->dgmnGear[i].description);
     }
 }
 
@@ -483,7 +520,7 @@ void printDigimon(digimon * partner){
         for (unsigned short i = 0; i < partner->numSpecialAttacks; i++){
             printf("Name: %s\tAccuracy: 2d%d\tPower: 2d%d\n", partner->specialAttacks[i].name, partner->specialAttacks[i].accuracy, partner->specialAttacks[i].power);
             printf("Bonus(es): %s\n", partner->specialAttacks[i].bonuses);
-            printf("Drawback(s): %s\n", partner->specialAttacks[i].drawbacks ? partner->specialAttacks[i].drawbacks : "None");
+            printf("Drawback(s): %s\n", strlen(partner->specialAttacks[i].drawbacks) > 1 ? partner->specialAttacks[i].drawbacks : "None");
             printf("Description: %s\n", partner->specialAttacks[i].description);
         }
     }
@@ -510,76 +547,102 @@ void printDigimon(digimon * partner){
 }
 
 char * buildCharacterSheet(digimon * partner){
-    size_t characterCounter = 0;
+    characterSheet.allocated = 0;
+    char tempText[FILE_PADDING] = {'\0'};
     
     if (partner->specialAttacks){
         for (size_t i = 0; i < partner->numSpecialAttacks; i++){
-            characterCounter += strlen(partner->specialAttacks[i].name) + strlen(partner->specialAttacks[i].description) + strlen(partner->specialAttacks[i].bonuses) + strlen(partner->specialAttacks[i].drawbacks);
+            characterSheet.allocated += strlen(partner->specialAttacks[i].name) + strlen(partner->specialAttacks[i].description) + strlen(partner->specialAttacks[i].bonuses) + strlen(partner->specialAttacks[i].drawbacks);
         }
     } 
 
     if (partner->abilities){
         for (size_t i = 0; i < partner->numAbilities; i++){
-            characterCounter += strlen(partner->abilities[i].name) + strlen(partner->abilities[i].description);
+            if (partner->abilities[i].name) characterSheet.allocated += strlen(partner->abilities[i].name);
+            if (partner->abilities[i].description) characterSheet.allocated += strlen(partner->abilities[i].description);
         }
     }
      
     if (partner->dgmnGear){
         for (size_t i = 0; i < partner->numGear; i++){
-            characterCounter += strlen(partner->dgmnGear[i].name) + strlen(partner->dgmnGear[i].description);
+            characterSheet.allocated += strlen(partner->dgmnGear[i].name) + strlen(partner->dgmnGear[i].description);
         }
     }
 
     if (partner->skills){
         for (size_t i = 0; i < partner->numSkills; i++){
-            characterCounter += strlen(partner->skills[i].name);
+            characterSheet.allocated += strlen(partner->skills[i].name);
         }
     }
     
-    char * characterSheet = (char *) malloc(sizeof(char) * (FILE_SIZE + characterCounter));
-    if(!characterSheet){
+    characterSheet.text = (char *) malloc(sizeof(char) * (characterSheet.allocated + FILE_PADDING));
+    if(!characterSheet.text){
+        fprintf(stderr, "Not enough memory for character sheet");
         exit(1);
     }
-    characterSheet[0] = '\0';
-    char * temp = (char *) malloc(sizeof(char) * TEMP_ARRAY_SIZE);
-    if(!temp){
-        exit(1);
-    }
-    temp[0] = '\0';
+    characterSheet.currentLength = 0;
+    characterSheet.text[0] = '\0';
     unsigned short half = 2;
-    unsigned short evasion = (unsigned short) ((partner->dgmnAttributes.wits + partner->dgmnAttributes.grace) / half + partner->dgmnAttributes.witsBonus + partner->dgmnAttributes.graceBonus);
-    unsigned short toughness = (unsigned short) ((partner->dgmnAttributes.brawn + partner->dgmnAttributes.heart) / half + partner->dgmnAttributes.brawnBonus + partner->dgmnAttributes.heartBonus);
-    sprintf(characterSheet, "Name:\t%s\n\n----------Attributes----------\nHeart: 2d%hd + %hd\nBrawn: 2d%hd + %hd\nWits: 2d%hd + %hd\nGrace: 2d%hd + %hd\n\n----------Defenses----------\n\nEvasion:\t%hd\nToughness\t%hd\n", 
+    unsigned short evasion = (unsigned short) (((partner->dgmnAttributes.wits + partner->dgmnAttributes.grace) / half ) + partner->dgmnAttributes.witsBonus + partner->dgmnAttributes.graceBonus);
+    unsigned short toughness = (unsigned short) (((partner->dgmnAttributes.brawn + partner->dgmnAttributes.heart) / half ) + partner->dgmnAttributes.brawnBonus + partner->dgmnAttributes.heartBonus);
+
+    snprintf(tempText, FILE_PADDING, "Name:\t%s\n\n----------Attributes----------\nHeart: 2d%hd + %hd\nBrawn: 2d%hd + %hd\nWits: 2d%hd + %hd\nGrace: 2d%hd + %hd\n\n----------Defenses----------\n\nEvasion:\t%hd\nToughness\t%hd\n", 
         partner->name, partner->dgmnAttributes.heart, partner->dgmnAttributes.heartBonus, partner->dgmnAttributes.brawn, partner->dgmnAttributes.brawnBonus, partner->dgmnAttributes.wits, partner->dgmnAttributes.witsBonus, partner->dgmnAttributes.grace, partner->dgmnAttributes.graceBonus, evasion, toughness);
+
+    safeConcat(&characterSheet, tempText);
+
     if(partner->specialAttacks){
-        strcat(characterSheet, "\n----------Special Attack(s)----------\n");
+        snprintf(tempText, FILE_PADDING, "\n----------Special Attack(s)----------\n");
+        safeConcat(&characterSheet, tempText);
         for (unsigned short i = 0; i < partner->numSpecialAttacks; i++){
-            sprintf(temp, "Name: %s\tAccuracy: 2d%d\tPower: 2d%d\nBonus(es):\t%s\nDrawback(s):\t%s\nDescription:\t%s\n", partner->specialAttacks[i].name, partner->specialAttacks[i].accuracy, partner->specialAttacks[i].power, partner->specialAttacks[i].bonuses, partner->specialAttacks[i].drawbacks, partner->specialAttacks[i].description);
-            strcat(characterSheet, temp);
+            snprintf(tempText, FILE_PADDING, "Name: %s\tAccuracy: 2d%d\tPower: 2d%d\nBonus(es):\t%s\nDrawback(s):\t%s\nDescription:\t%s\n", partner->specialAttacks[i].name, partner->specialAttacks[i].accuracy, partner->specialAttacks[i].power, partner->specialAttacks[i].bonuses, partner->specialAttacks[i].drawbacks, partner->specialAttacks[i].description);
+            safeConcat(&characterSheet, tempText);
         }
     }
     if(partner->abilities){
-        strcat(characterSheet, "\n----------Abilities----------\n");
+        snprintf(tempText, FILE_PADDING, "\n----------Abilities----------\n");
+        safeConcat(&characterSheet, tempText);
         for (unsigned short i = 0; i < partner->numAbilities; i++){
-            sprintf(temp, "%s:\t%s\n", partner->abilities[i].name, partner->abilities[i].description);
-            strcat(characterSheet, temp);
+            snprintf(tempText, FILE_PADDING, "%s:\t%s\n", partner->abilities[i].name, partner->abilities[i].description);
+            safeConcat(&characterSheet, tempText);
         } 
     }
     if(partner->dgmnGear){
-        strcat(characterSheet, "\n----------Gear----------\n");
+        snprintf(tempText, FILE_PADDING, "\n----------Gear----------\n");
+        safeConcat(&characterSheet, tempText);
         for (unsigned short i = 0; i < partner->numGear; i++){
-            sprintf(temp, "%s:\t%s\n", partner->dgmnGear[i].name, partner->dgmnGear[i].description);
-            strcat(characterSheet, temp);
+            snprintf(tempText, FILE_PADDING, "%s:\t%s\n", partner->dgmnGear[i].name, partner->dgmnGear[i].description);
+            safeConcat(&characterSheet, tempText);
         }
     }
 
     if(partner->skills){
-        strcat(characterSheet, "\n----------Skills----------\n");
+        snprintf(tempText, FILE_PADDING, "\n----------Skills----------\n");
+        safeConcat(&characterSheet, tempText);
         for (unsigned short i = 0; i < partner->numSkills; i++){
-            sprintf(temp, "%s:\t%d\n", partner->skills[i].name, partner->skills[i].bonus);
-            strcat(characterSheet, temp);
+            snprintf(tempText, FILE_PADDING, "%s:\t%d\n", partner->skills[i].name, partner->skills[i].bonus);
+            safeConcat(&characterSheet, tempText);
         }
     }
-    free(temp);
-    return characterSheet;
+    return characterSheet.text;
+}
+
+
+void checkSpaceNeeded(charSheet * x){
+    if ( x->currentLength + x->needed >= x->allocated ){
+        x->allocated += x->needed + FILE_PADDING;
+        char * temp = realloc(x->text, x->allocated);
+        if (!temp){
+            fprintf(stderr, "Not enough memory to allocate space for name.");
+            exit(EXIT_FAILURE);
+        }
+        x->text = temp;
+    }
+}
+
+void safeConcat(charSheet * x, char * line){
+    x->needed = (size_t) snprintf(NULL, 0, "%s", line);
+    checkSpaceNeeded(x);
+    x->bitesWritten = (size_t) snprintf(x->text + x->currentLength, x->allocated - x->currentLength, "%s", line);
+    x->currentLength += x->bitesWritten;
 }
