@@ -9,20 +9,20 @@
 #define NAME_SIZE 31
 #define FILE_NAME_SIZE 81
 #define DESCRIPTION_SIZE 151
-#define FILE_SIZE 2000
+#define FILE_SIZE 8000
 #define MAX_DIE_TYPE 12
 #define BONUS_DRAWBACK_SIZE 51
-#define TEMP_ARRAY_SIZE 201
+#define TEMP_ARRAY_SIZE 401
 
 typedef struct attributes{
-    size_t brawn;
-    size_t brawnBonus;
-    size_t grace;
-    size_t graceBonus;
-    size_t wits;
-    size_t witsBonus;
-    size_t heart;
-    size_t heartBonus;
+    unsigned short brawn;
+    unsigned short brawnBonus;
+    unsigned short grace;
+    unsigned short graceBonus;
+    unsigned short wits;
+    unsigned short witsBonus;
+    unsigned short heart;
+    unsigned short heartBonus;
 } attributes;
 typedef struct specialAttack{
     char *name;
@@ -32,211 +32,225 @@ typedef struct specialAttack{
     int accuracy;
     int power;
 } specialAttack;
-typedef struct abilities{
+typedef struct ability{
     char * name;
     char * description;
-} abilities;
+} ability;
 typedef struct gear{
     char * name;
     char * description;
 } gear;
 typedef struct skill{
     char * name;
-    short bonus;
+    unsigned short bonus;
 } skill;
 
 typedef struct digimon{
+    unsigned short stage;
+    unsigned short attributePoints;
+    unsigned short bonusPoints;
+    unsigned short specialAttackPoints;
+    unsigned short numSpecialAttacks;
+    unsigned short numAbilities;
+    unsigned short numGear;
+    unsigned short numSkills;
     char *name;
-    short int stage;
-    short int atributePoints;
-    short int bonusPoints;
-    short int specialAttackPoints;
     attributes dgmnAttributes;
-    specialAttack * special;
-    size_t numSpecialAttacks;
-    abilities * dgmnAbilities;
-    size_t numAbilities;
+    specialAttack * specialAttacks;
+    ability * abilities;
     gear * dgmnGear;
-    size_t numGear;
-    skill * dgmnSkills;
-    size_t numSkills;
-}digimon;
+    skill * skills;
+} digimon;
 
-bool isBuiltSpecial = false;
-bool isAssignedAbilities = false;
-bool isAssignedGear = false;
-bool isAssignedSkills = false;
-char * characterSheet;
 
-digimon nameCharacter(digimon partner);
-digimon determinePoints(digimon partner);
-digimon incrementAttributes(digimon partner);
-digimon spendBonus(digimon partner);
-digimon buildSpecial(digimon partner);
-digimon assignAbilities(digimon partner);
-digimon assignGear(digimon partner);
-digimon assignSkills(digimon partner);
+void nameCharacter(digimon * partner);
+void determinePoints(digimon * partner);
+void incrementAttributes(digimon * partner);
+void spendBonusPoints(digimon * partner);
+void buildSpecial(digimon * partner);
+void assignAbilities(digimon * partner);
+void assignGear(digimon * partner);
+void assignSkills(digimon * partner);
 char * clearNewline(char * line);
-char * buildCharacterSheet(digimon partner);
-void printDigimon(digimon partner);
+char * buildCharacterSheet(digimon * partner);
+void printDigimon(digimon * partner);
 
 int main(){
 
     digimon partner = {0};
     partner.dgmnAttributes = (attributes) {2, 0, 2, 0, 2, 0, 2, 0};
+    partner.specialAttacks = NULL;
+    partner.abilities = NULL;
+    partner.dgmnGear = NULL;
+    partner.skills = NULL;
     partner.numSpecialAttacks = 1;
 
     printf("%s", "Input digimon evolutionary stage as an integer (1, 2, 3, 4, 5, or 6):\t");
-    scanf("%hd", &partner.stage);
-    while((getchar()) != '\n');
+    scanf("%hu", &partner.stage);
+    int c = 0;
+    while(c = (getchar()) != '\n' && c != EOF);
     while(partner.stage < 1 || partner.stage > 6){
         printf("Invalid input.  Please input a number between 1 (for fresh / baby 1) and 6 (for mega / ultimate):\t");
-        scanf("%hd", &partner.stage);
+        scanf("%hu", &partner.stage);
+        int c = 0;
+        while(c = (getchar()) != '\n' && c != EOF);
     }
-    partner = determinePoints(partner);
-    partner = nameCharacter(partner);
-    partner = incrementAttributes(partner);
-    partner = spendBonus(partner);
-    partner = buildSpecial(partner);
-    partner = assignAbilities(partner);
-    partner = assignGear(partner);
-    partner = assignSkills(partner);
-    printDigimon(partner);
+    determinePoints(&partner);
+    nameCharacter(&partner);
+    incrementAttributes(&partner);
+    if(partner.bonusPoints > 0){
+        spendBonusPoints(&partner);
+    }
+    buildSpecial(&partner);
+    assignAbilities(&partner);
+    assignGear(&partner);
+    assignSkills(&partner);
+    printDigimon(&partner);
     FILE * fPtr;
-    char * fileName;
-    fileName = (char *) malloc(sizeof(char) * FILE_NAME_SIZE);
-    if(!fileName){
+    char fileName[FILE_NAME_SIZE] = {0};
+    size_t j = 0;
+    for (size_t i = 0; i < strlen(partner.name); i++){
+        if (isalnum(partner.name[i])){
+            fileName[j++] = partner.name[i];
+        }
+    }
+    fileName[j] = '\0';
+    strncat(fileName, ".txt", FILE_NAME_SIZE);
+    fPtr = fopen(fileName, "w");
+    if(!fPtr){
         exit(1);
     }
-    strcpy(fileName, partner.name);
-    strcat(fileName, ".txt");
-    fPtr = fopen(fileName, "w");
-    free(fileName);
-    characterSheet = buildCharacterSheet(partner);
+    char * characterSheet = buildCharacterSheet(&partner);
     fprintf(fPtr, "%s", characterSheet);
     fclose(fPtr);
     free(partner.name);
-    for (size_t i = 0; i < partner.numSpecialAttacks; i++){
-        free(partner.special[i].name);
-        free(partner.special[i].description);
-        free(partner.special[i].bonuses);
-        free(partner.special[i].drawbacks);
+    if(partner.specialAttacks){
+        for (unsigned short i = 0; i < partner.numSpecialAttacks; i++){
+            free(partner.specialAttacks[i].name);
+            free(partner.specialAttacks[i].description);
+            free(partner.specialAttacks[i].bonuses);
+            free(partner.specialAttacks[i].drawbacks);
+        }
+        free(partner.specialAttacks);
     }
-    free(partner.special);
-    for (size_t i = 0; i < partner.numAbilities; i++){
-        free(partner.dgmnAbilities[i].name);
-        free(partner.dgmnAbilities[i].description);
+    if(partner.abilities){
+        for (unsigned short i = 0; i < partner.numAbilities; i++){
+            free(partner.abilities[i].name);
+            free(partner.abilities[i].description);
+        }
+        free(partner.abilities);
     }
-    free(partner.dgmnAbilities);
-    for (size_t i = 0; i < partner.numGear; i++){
-        free(partner.dgmnGear[i].name);
-        free(partner.dgmnGear[i].description);    
+    if(partner.dgmnGear){
+        for (unsigned short i = 0; i < partner.numGear; i++){
+            free(partner.dgmnGear[i].name);
+            free(partner.dgmnGear[i].description);    
+        }
+        free(partner.dgmnGear);
     }
-    free(partner.dgmnGear);
-    for (size_t i = 0; i < partner.numSkills; i++){
-        free(partner.dgmnSkills[i].name);
+    if(partner.skills){
+        for (unsigned short i = 0; i < partner.numSkills; i++){
+            free(partner.skills[i].name);
+        }
+        free(partner.skills);
     }
-    free(partner.dgmnSkills);
     free(characterSheet);
     return 0;
 }
 
-digimon determinePoints(digimon partner){
-    switch (partner.stage)
+void determinePoints(digimon * partner){
+    switch (partner->stage)
     {
     case 1:
         break;
     case 2:
-        partner.atributePoints = 4;
+        partner->attributePoints = 4;
         break;
     case 3:
-        partner.atributePoints = 8;
-        partner.bonusPoints = 1;
-        partner.specialAttackPoints = 2;
+        partner->attributePoints = 8;
+        partner->bonusPoints = 1;
+        partner->specialAttackPoints = 2;
         break;
     case 4:
-        partner.atributePoints = 12;
-        partner.bonusPoints = 2;
-        partner.specialAttackPoints = 4;
+        partner->attributePoints = 12;
+        partner->bonusPoints = 2;
+        partner->specialAttackPoints = 4;
         break;
     case 5:
-        partner.atributePoints = 16;
-        partner.bonusPoints = 3;
-        partner.specialAttackPoints = 6;
+        partner->attributePoints = 16;
+        partner->bonusPoints = 3;
+        partner->specialAttackPoints = 6;
         break;
     case 6:
-        partner.atributePoints = 20;
-        partner.bonusPoints = 5;
-        partner.specialAttackPoints = 8;
+        partner->attributePoints = 20;
+        partner->bonusPoints = 5;
+        partner->specialAttackPoints = 8;
         break;
     default:
         break;
     }
-    return partner;
 }
 
-digimon nameCharacter(digimon partner){
-    partner.name = (char *) malloc(sizeof(char) * NAME_SIZE);
-    if(!partner.name){
+void nameCharacter(digimon * partner){
+    partner->name = (char *) malloc(sizeof(char) * NAME_SIZE);
+    if(!partner->name){
         exit(1);
     }
     printf("%s", "Input digimon name, 30 characters or less:\t");
-    fgets(partner.name, NAME_SIZE, stdin);
-    partner.name = clearNewline(partner.name);
+    fgets(partner->name, NAME_SIZE, stdin);
+    clearNewline(partner->name);
     char sentinel = 'n';
     do{
-        printf("You typed: %s.\nIs that correct? Y for yes:\t", partner.name);
+        printf("You typed: %s.\nIs that correct? Y for yes:\t", partner->name);
         scanf("%c", &sentinel);
         sentinel = (char) toupper(sentinel);
-        if (sentinel != 'Y'){
-            while((getchar()) != '\n');
+        int c = 0;
+        while(c = (getchar()) != '\n' && c != EOF);
+        if(sentinel != 'Y'){
             printf("%s", "Input digimon name:\t");
-            fgets(partner.name, 50, stdin);
-            partner.name = clearNewline(partner.name);
+            fgets(partner->name, NAME_SIZE, stdin);
+            clearNewline(partner->name);
         }
     } while(sentinel != 'Y');
-    return (partner);
 }
 
-digimon incrementAttributes(digimon partner){
-    while((getchar()) != '\n');
-    char atribute[11];
-    while (partner.atributePoints > 0){
+void incrementAttributes(digimon * partner){
+    char atribute[TEMP_ARRAY_SIZE];
+    while (partner->attributePoints > 0){
         printf("%s", "Increment atribute?  Heart, Brawn, Grace, Wits or Print:\t");
-        fgets(atribute, 10, stdin);
+        fgets(atribute, TEMP_ARRAY_SIZE, stdin);
         atribute[0] = (char) toupper(atribute[0]);
         switch (atribute[0])
         {
         case 'H':
-            partner.dgmnAttributes.heart += 2;
-            partner.atributePoints--;
-            if (partner.dgmnAttributes.heart > MAX_DIE_TYPE){
-                partner.dgmnAttributes.heart = MAX_DIE_TYPE;
-                partner.dgmnAttributes.heartBonus++;
+            partner->dgmnAttributes.heart += 2;
+            partner->attributePoints--;
+            if(partner->dgmnAttributes.heart > MAX_DIE_TYPE){
+                partner->dgmnAttributes.heart = MAX_DIE_TYPE;
+                partner->dgmnAttributes.heartBonus++;
             }
             break;
         case 'B':
-            partner.dgmnAttributes.brawn += 2;
-            partner.atributePoints--;
-            if (partner.dgmnAttributes.brawn > MAX_DIE_TYPE){
-                partner.dgmnAttributes.brawn = MAX_DIE_TYPE;
-                partner.dgmnAttributes.brawnBonus++;
+            partner->dgmnAttributes.brawn += 2;
+            partner->attributePoints--;
+            if(partner->dgmnAttributes.brawn > MAX_DIE_TYPE){
+                partner->dgmnAttributes.brawn = MAX_DIE_TYPE;
+                partner->dgmnAttributes.brawnBonus++;
             }
             break;
         case 'G':
-            partner.dgmnAttributes.grace += 2;
-            partner.atributePoints--;
-            if (partner.dgmnAttributes.grace > MAX_DIE_TYPE){
-                partner.dgmnAttributes.grace = MAX_DIE_TYPE;
-                partner.dgmnAttributes.graceBonus++;
+            partner->dgmnAttributes.grace += 2;
+            partner->attributePoints--;
+            if(partner->dgmnAttributes.grace > MAX_DIE_TYPE){
+                partner->dgmnAttributes.grace = MAX_DIE_TYPE;
+                partner->dgmnAttributes.graceBonus++;
             }
             break;
         case 'W':
-            partner.dgmnAttributes.wits += 2;
-            partner.atributePoints--;
-            if (partner.dgmnAttributes.wits > MAX_DIE_TYPE){
-                partner.dgmnAttributes.wits = MAX_DIE_TYPE;
-                partner.dgmnAttributes.witsBonus++;
+            partner->dgmnAttributes.wits += 2;
+            partner->attributePoints--;
+            if(partner->dgmnAttributes.wits > MAX_DIE_TYPE){
+                partner->dgmnAttributes.wits = MAX_DIE_TYPE;
+                partner->dgmnAttributes.witsBonus++;
             }
             break;
         case 'P':
@@ -246,12 +260,11 @@ digimon incrementAttributes(digimon partner){
             break;
         }
     }
-    return partner;
 }
 
-digimon spendBonus(digimon partner){
+void spendBonusPoints(digimon * partner){
     char buffer[TEMP_ARRAY_SIZE];
-    for (unsigned short i = 0; i < partner.bonusPoints; i++){
+    while (partner->bonusPoints > 0){
         printf("%s", "Spend bonus points: Special, Ability, Skill or Gear?\t");
         fgets(buffer, TEMP_ARRAY_SIZE, stdin);
         buffer[0] = (char) toupper(buffer[0]);
@@ -259,103 +272,134 @@ digimon spendBonus(digimon partner){
         switch (buffer[0])
         {
         case 'S':
-            if (buffer[1] == 'P'){
-                partner.numSpecialAttacks++;
+            if(buffer[1] == 'P'){
+                partner->numSpecialAttacks++;
+                partner->bonusPoints--;
             }
-            else if (buffer[1] == 'K'){
-                partner.numSkills++;
+            else if(buffer[1] == 'K'){
+                partner->numSkills++;
+                partner->bonusPoints--;
             }
             break;
         case 'A':
-            partner.numAbilities++;
+            partner->numAbilities++;
+            partner->bonusPoints--;
             break;
         case 'G':
-            partner.numGear++;
+            partner->numGear++;
+            partner->bonusPoints--;
             break;
         default:
-            continue;
+            break;
         }
     }
-    partner.dgmnAbilities = (abilities *) malloc(sizeof(abilities) * partner.numAbilities);
-    if(!partner.dgmnAbilities){
-        exit(1);
+    if(partner->numAbilities > 0){
+        partner->abilities = (ability *) malloc(sizeof(ability) * partner->numAbilities);
+        if(!partner->abilities){
+            exit(1);
+        }
     }
-    partner.dgmnGear = (gear *) malloc(sizeof(gear) * partner.numGear);
-    if(!partner.dgmnGear){
-        exit(1);
+    else {
+        partner->abilities = NULL;
     }
-    partner.dgmnSkills = (skill *) malloc(sizeof(skill) * partner.numSkills);
-    if(!partner.dgmnSkills){
-        exit(1);
+    if(partner->numGear > 0){
+        partner->dgmnGear = (gear *) malloc(sizeof(gear) * partner->numGear);
+        if(!partner->dgmnGear){
+            exit(1);
+        }
     }
-    partner.special = (specialAttack *) malloc(sizeof(specialAttack) * partner.numSpecialAttacks);
-    if(!partner.special){
-        exit(1);
+    else {
+        partner->dgmnGear = NULL;
     }
-    for (size_t i = 0; i < partner.numAbilities; i++){
-        partner.dgmnAbilities[i] = (abilities) {0};
+    if(partner->numSkills > 0){
+        partner->skills = (skill *) malloc(sizeof(skill) * partner->numSkills);
+        if(!partner->skills){
+            exit(1);
+        }
     }
-    for (size_t i = 0; i < partner.numGear; i++){
-        partner.dgmnGear[i] = (gear) {0};
+    else {
+        partner->skills = NULL;
     }
-    for (size_t i = 0; i < partner.numSkills; i++){
-        partner.dgmnSkills[i] = (skill) {0};
+    if (partner->abilities){
+        for (unsigned short i = 0; i < partner->numAbilities; i++){
+            partner->abilities[i] = (ability) {0};
+        }
     }
-    for (size_t i = 0; i < partner.numSpecialAttacks; i++){
-        partner.special[i] = (specialAttack) {0};
+    if(partner->dgmnGear){
+        for (unsigned short i = 0; i < partner->numGear; i++){
+            partner->dgmnGear[i] = (gear) {0};
+        }
     }
-    return partner;
+    if(partner->skills){
+        for (unsigned short i = 0; i < partner->numSkills; i++){
+            partner->skills[i] = (skill) {0};
+        }
+    }
+    if(partner->specialAttacks){
+        for (unsigned short i = 0; i < partner->numSpecialAttacks; i++){
+            partner->specialAttacks[i] = (specialAttack) {0};
+        }
+    }
 }
 
-digimon buildSpecial(digimon partner){
-    char * attackStat = (char *) malloc(sizeof(char) * 15);
+void buildSpecial(digimon * partner){
+    if(partner->numSpecialAttacks > 0){
+        partner->specialAttacks = (specialAttack *) malloc(sizeof(specialAttack) * partner->numSpecialAttacks);
+        if(!partner->specialAttacks){
+            exit(1);
+        }
+    }
+    else {
+        partner->specialAttacks = NULL;
+    }
+    char * attackStat = (char *) malloc(sizeof(char) * TEMP_ARRAY_SIZE);
     if(!attackStat){
         exit(1);
     }
-    for(size_t i = 0; i < partner.numSpecialAttacks; i++){
-        partner.special[i].name = (char *) malloc(sizeof(char) * NAME_SIZE);
-        if(!partner.special[1].name){
+    for(unsigned short i = 0; i < partner->numSpecialAttacks; i++){
+        partner->specialAttacks[i].name = (char *) malloc(sizeof(char) * NAME_SIZE);
+        if(!partner->specialAttacks[i].name){
             exit(1);
         }
-        partner.special[i].description = (char *) malloc(sizeof(char) * DESCRIPTION_SIZE);
-        if(!partner.special[i].description){
+        partner->specialAttacks[i].description = (char *) malloc(sizeof(char) * DESCRIPTION_SIZE);
+        if(!partner->specialAttacks[i].description){
             exit(1);
         }
-        partner.special[i].bonuses = (char *) malloc(sizeof(char) * BONUS_DRAWBACK_SIZE);
-        if(!partner.special[i].bonuses){
+        partner->specialAttacks[i].bonuses = (char *) malloc(sizeof(char) * BONUS_DRAWBACK_SIZE);
+        if(!partner->specialAttacks[i].bonuses){
             exit(1);
         }
-        partner.special[i].drawbacks = (char *) malloc(sizeof(char) * BONUS_DRAWBACK_SIZE);
-        if(!partner.special[i].drawbacks){
+        partner->specialAttacks[i].drawbacks = (char *) malloc(sizeof(char) * BONUS_DRAWBACK_SIZE);
+        if(!partner->specialAttacks[i].drawbacks){
             exit(1);
         }
-        partner.special[i].bonuses[0] = '\0';
-        partner.special[i].drawbacks[0] = '\0';
-        partner.special[i].accuracy = 2;
-        partner.special[i].power = 2;
-        printf("Name special attack number %lu, 30 characters or less:\t", i + 1);
-        fgets(partner.special[i].name, NAME_SIZE, stdin);
-        partner.special[i].name = clearNewline(partner.special[i].name);
-        printf("Describe special attack number %lu, 100 characters or less:\t", i + 1);
-        fgets(partner.special[i].description, DESCRIPTION_SIZE, stdin);
-        partner.special[i].description = clearNewline(partner.special[i].description);
-        printf("List special attack number %lu bonus(es), 50 characters or less:\t", i + 1);
-        fgets(partner.special[i].bonuses, BONUS_DRAWBACK_SIZE, stdin);
-        partner.special[i].bonuses = clearNewline(partner.special[i].bonuses);
-        printf("List special attack number %lu drawback(s) if applicable, 50 characters or less:\t", i + 1);
-        fgets(partner.special[i].drawbacks, BONUS_DRAWBACK_SIZE, stdin);
-        partner.special[i].drawbacks = clearNewline(partner.special[i].drawbacks);
-        for(short j = 0; j < partner.specialAttackPoints; j++){
+        partner->specialAttacks[i].bonuses[0] = '\0';
+        partner->specialAttacks[i].drawbacks[0] = '\0';
+        partner->specialAttacks[i].accuracy = 2;
+        partner->specialAttacks[i].power = 2;
+        printf("Name special attack number %hd, 30 characters or less:\t", i + 1);
+        fgets(partner->specialAttacks[i].name, NAME_SIZE, stdin);
+        partner->specialAttacks[i].name = clearNewline(partner->specialAttacks[i].name);
+        printf("Describe special attack number %hd, 100 characters or less:\t", i + 1);
+        fgets(partner->specialAttacks[i].description, DESCRIPTION_SIZE, stdin);
+        partner->specialAttacks[i].description = clearNewline(partner->specialAttacks[i].description);
+        printf("List special attack number %hd bonus(es), 50 characters or less:\t", i + 1);
+        fgets(partner->specialAttacks[i].bonuses, BONUS_DRAWBACK_SIZE, stdin);
+        partner->specialAttacks[i].bonuses = clearNewline(partner->specialAttacks[i].bonuses);
+        printf("List special attack number %hd drawback(s) if applicable, 50 characters or less:\t", i + 1);
+        fgets(partner->specialAttacks[i].drawbacks, BONUS_DRAWBACK_SIZE, stdin);
+        partner->specialAttacks[i].drawbacks = clearNewline(partner->specialAttacks[i].drawbacks);
+        for(unsigned short j = 0; j < partner->specialAttackPoints; j++){
             printf("%s", "Augment Accuracy or Power?\t");
-            fgets(attackStat, 15, stdin);
+            fgets(attackStat, TEMP_ARRAY_SIZE, stdin);
             attackStat[0] = (char) toupper(attackStat[0]);
             switch (attackStat[0])
             {
             case 'A':
-                partner.special[i].accuracy += 2;
+                partner->specialAttacks[i].accuracy += 2;
                 break;
             case 'P':
-                partner.special[i].power += 2;
+                partner->specialAttacks[i].power += 2;
                 break;
             default:
                 continue;
@@ -363,124 +407,136 @@ digimon buildSpecial(digimon partner){
         }
     }
     free(attackStat);
-    isBuiltSpecial = true;
-    return partner;
 }
 
-digimon assignAbilities(digimon partner){
-    for (size_t i = 0; i < partner.numAbilities; i++){
-        partner.dgmnAbilities[i].name = (char *) malloc(sizeof(char) * NAME_SIZE);
-        if(!partner.dgmnAbilities[i].name){
+void assignAbilities(digimon * partner){
+    for (unsigned short i = 0; i < partner->numAbilities; i++){
+        partner->abilities[i].name = (char *) malloc(sizeof(char) * NAME_SIZE);
+        if(!partner->abilities[i].name){
             exit(1);
         }
-        partner.dgmnAbilities[i].description = (char *) malloc(sizeof(char) * DESCRIPTION_SIZE);
-        if(!partner.dgmnAbilities[i].description){
+        partner->abilities[i].description = (char *) malloc(sizeof(char) * DESCRIPTION_SIZE);
+        if(!partner->abilities[i].description){
             exit(1);
         }
-        printf("Name ability #%zu, 30 characters or less:\t", i + 1);
-        fgets(partner.dgmnAbilities[i].name, NAME_SIZE, stdin);
-        partner.dgmnAbilities[i].name = clearNewline(partner.dgmnAbilities[i].name);
-        printf("Describe ability #%zu, 100 characters or less:\t", i + 1);
-        fgets(partner.dgmnAbilities[i].description, DESCRIPTION_SIZE, stdin);
-        partner.dgmnAbilities[i].description = clearNewline(partner.dgmnAbilities[i].description);
+        printf("Name ability #%hd, 30 characters or less:\t", i + 1);
+        fgets(partner->abilities[i].name, NAME_SIZE, stdin);
+        partner->abilities[i].name = clearNewline(partner->abilities[i].name);
+        printf("Describe ability #%hd, 100 characters or less:\t", i + 1);
+        fgets(partner->abilities[i].description, DESCRIPTION_SIZE, stdin);
+        partner->abilities[i].description = clearNewline(partner->abilities[i].description);
     }
-    isAssignedAbilities = true;
-    return partner;
 }
 
-digimon assignGear(digimon partner){
-    for (size_t i = 0; i < partner.numGear; i++){
-        partner.dgmnGear[i].name = (char *) malloc(sizeof(char) * NAME_SIZE);
-        if(!partner.dgmnGear[i].name){
+void assignGear(digimon * partner){
+    for (unsigned short i = 0; i < partner->numGear; i++){
+        partner->dgmnGear[i].name = (char *) malloc(sizeof(char) * NAME_SIZE);
+        if(!partner->dgmnGear[i].name){
             exit(1);
         }
-        partner.dgmnGear[i].description = (char *) malloc(sizeof(char) * DESCRIPTION_SIZE);
-        if(!partner.dgmnGear[i].description){
+        partner->dgmnGear[i].description = (char *) malloc(sizeof(char) * DESCRIPTION_SIZE);
+        if(!partner->dgmnGear[i].description){
             exit(1);
         }
-        printf("Name gear #%lu, 30 characters or less:\t", i + 1);
-        fgets(partner.dgmnGear[i].name, NAME_SIZE, stdin);
-        partner.dgmnGear[i].name = clearNewline(partner.dgmnGear[i].name);
-        printf("Describe gear #%lu, 100 characters or less:\t", i + 1);
-        fgets(partner.dgmnGear[i].description, DESCRIPTION_SIZE, stdin);
-        partner.dgmnGear[i].description = clearNewline(partner.dgmnGear[i].description);
+        printf("Name gear #%hd, 30 characters or less:\t", i + 1);
+        fgets(partner->dgmnGear[i].name, NAME_SIZE, stdin);
+        partner->dgmnGear[i].name = clearNewline(partner->dgmnGear[i].name);
+        printf("Describe gear #%hd, 100 characters or less:\t", i + 1);
+        fgets(partner->dgmnGear[i].description, DESCRIPTION_SIZE, stdin);
+        partner->dgmnGear[i].description = clearNewline(partner->dgmnGear[i].description);
     }
-    isAssignedGear = true;
-    return partner;
 }
 
-digimon assignSkills(digimon partner){
-    for (size_t i = 0; i < partner.numSkills; i++){
-        partner.dgmnSkills[i].name = (char *) malloc(sizeof(char) * 16);
-        if(!partner.dgmnSkills[i].name){
+void assignSkills(digimon * partner){
+    for (unsigned short i = 0; i < partner->numSkills; i++){
+        partner->skills[i].name = (char *) malloc(sizeof(char) * NAME_SIZE);
+        if(!partner->skills[i].name){
             exit(1);
         }
-        printf("Name Skill #%zu, 30 characters or less:\t", i + 1);
-        fgets(partner.dgmnSkills[i].name, NAME_SIZE, stdin);
-        partner.dgmnSkills[i].name = clearNewline(partner.dgmnSkills[i].name);
-        partner.dgmnSkills[i].bonus = 2;
-        }
-    isAssignedSkills = true;
-    return partner;
+        printf("Name Skill #%hd, 30 characters or less:\t", i + 1);
+        fgets(partner->skills[i].name, NAME_SIZE, stdin);
+        partner->skills[i].name = clearNewline(partner->skills[i].name);
+        partner->skills[i].bonus = 2;
+    }
 }
 
 char * clearNewline(char * line){
-    size_t i = 0;
-    while (line[i] != '\0'){
-        i++;
-    }
-    if (i > 0 && line[i - 1] == '\n'){
-        line[i - 1] = '\0';
-    }
+    line[strcspn(line, "\n")] = '\0';
     return line;
 }
 
-void printDigimon(digimon partner){
-    printf("\n\nName: %s\n", partner.name);
-    printf("Atribute points remaining: %d\n", partner.atributePoints);
-    printf("Bonus points remaining: %d\n", partner.bonusPoints);
-    printf("Special Attack Points remaining: %d\n", partner.specialAttackPoints);
+void printDigimon(digimon * partner){
+    printf("\n\nName: %s\n", partner->name);
+    printf("Atribute points remaining: %d\n", partner->attributePoints);
+    printf("Bonus points remaining: %d\n", partner->bonusPoints);
+    printf("Special Attack Points remaining: %d\n", partner->specialAttackPoints);
     printf("%s", "----------Atributes----------\n");
-    printf("Heart: 2d%lu + %lu\n" , partner.dgmnAttributes.heart, partner.dgmnAttributes.heartBonus);
-    printf("Brawn: 2d%lu + %lu\n" , partner.dgmnAttributes.brawn, partner.dgmnAttributes.brawnBonus);
-    printf("Wits: 2d%lu + %lu\n" , partner.dgmnAttributes.wits, partner.dgmnAttributes.witsBonus);
-    printf("Grace: 2d%lu + %lu\n" , partner.dgmnAttributes.grace, partner.dgmnAttributes.graceBonus);
+    printf("Heart: 2d%hd + %hd\n" , partner->dgmnAttributes.heart, partner->dgmnAttributes.heartBonus);
+    printf("Brawn: 2d%hd + %hd\n" , partner->dgmnAttributes.brawn, partner->dgmnAttributes.brawnBonus);
+    printf("Wits: 2d%hd + %hd\n" , partner->dgmnAttributes.wits, partner->dgmnAttributes.witsBonus);
+    printf("Grace: 2d%hd + %hd\n" , partner->dgmnAttributes.grace, partner->dgmnAttributes.graceBonus);
     printf("%s", "----------Defences----------\n");
-    printf("Evasion: %lu\n", ((partner.dgmnAttributes.wits + partner.dgmnAttributes.grace) / 2 + partner.dgmnAttributes.witsBonus + partner.dgmnAttributes.graceBonus));
-    printf("Toughness: %lu\n", ((partner.dgmnAttributes.brawn + partner.dgmnAttributes.heart) / 2 + partner.dgmnAttributes.brawnBonus + partner.dgmnAttributes.heartBonus));
-    if (isBuiltSpecial){
+    printf("Evasion: %hd\n", ((partner->dgmnAttributes.wits + partner->dgmnAttributes.grace) / 2 + partner->dgmnAttributes.witsBonus + partner->dgmnAttributes.graceBonus));
+    printf("Toughness: %hd\n", ((partner->dgmnAttributes.brawn + partner->dgmnAttributes.heart) / 2 + partner->dgmnAttributes.brawnBonus + partner->dgmnAttributes.heartBonus));
+    if(partner->specialAttacks){
         printf("%s", "----------Special Attack(s)----------\n");
-        for (size_t i = 0; i < partner.numSpecialAttacks; i++){
-            printf("Name: %s\tAccuracy: 2d%d\tPower: 2d%d\n", partner.special[i].name, partner.special[i].accuracy, partner.special[i].power);
-            printf("Bonus(es): %s\n", partner.special[i].bonuses);
-            printf("Drawback(s): %s\n", partner.special[i].drawbacks ? partner.special[i].drawbacks : "None");
-            printf("Description: %s\n", partner.special[i].description);
+        for (unsigned short i = 0; i < partner->numSpecialAttacks; i++){
+            printf("Name: %s\tAccuracy: 2d%d\tPower: 2d%d\n", partner->specialAttacks[i].name, partner->specialAttacks[i].accuracy, partner->specialAttacks[i].power);
+            printf("Bonus(es): %s\n", partner->specialAttacks[i].bonuses);
+            printf("Drawback(s): %s\n", partner->specialAttacks[i].drawbacks ? partner->specialAttacks[i].drawbacks : "None");
+            printf("Description: %s\n", partner->specialAttacks[i].description);
         }
     }
-    if (isAssignedAbilities){
+    if(partner->abilities){
         printf("%s\n", "----------Abilities----------");
-        for (size_t i = 0; i < partner.numAbilities; i++){
-            printf("%s:\t%s\n", partner.dgmnAbilities[i].name, partner.dgmnAbilities[i].description);
+        for (unsigned short i = 0; i < partner->numAbilities; i++){
+            printf("%s:\t%s\n", partner->abilities[i].name, partner->abilities[i].description);
         } 
     }
 
-    if (isAssignedGear){
+    if(partner->dgmnGear){
         printf("%s\n", "----------Gear----------");
-        for (size_t i = 0; i < partner.numGear; i++){
-            printf("%s\n%s\n", partner.dgmnGear[i].name, partner.dgmnGear[i].description);
+        for (unsigned short i = 0; i < partner->numGear; i++){
+            printf("%s\n%s\n", partner->dgmnGear[i].name, partner->dgmnGear[i].description);
         }
     }
 
-    if (isAssignedSkills){
+    if(partner->skills){
         printf("%s\n", "----------Skills----------");
-        for (size_t i = 0; i < partner.numSkills; i++){
-            printf("%s\t+%d\n", partner.dgmnSkills[i].name, partner.dgmnSkills[i].bonus);
+        for (unsigned short i = 0; i < partner->numSkills; i++){
+            printf("%s\t+%d\n", partner->skills[i].name, partner->skills[i].bonus);
         }
     }
 }
 
-char * buildCharacterSheet(digimon partner){
-    characterSheet = (char *) malloc(sizeof(char) * FILE_SIZE);
+char * buildCharacterSheet(digimon * partner){
+    size_t characterCounter = 0;
+    
+    if (partner->specialAttacks){
+        for (size_t i = 0; i < partner->numSpecialAttacks; i++){
+            characterCounter += strlen(partner->specialAttacks[i].name) + strlen(partner->specialAttacks[i].description) + strlen(partner->specialAttacks[i].bonuses) + strlen(partner->specialAttacks[i].drawbacks);
+        }
+    } 
+
+    if (partner->abilities){
+        for (size_t i = 0; i < partner->numAbilities; i++){
+            characterCounter += strlen(partner->abilities[i].name) + strlen(partner->abilities[i].description);
+        }
+    }
+     
+    if (partner->dgmnGear){
+        for (size_t i = 0; i < partner->numGear; i++){
+            characterCounter += strlen(partner->dgmnGear[i].name) + strlen(partner->dgmnGear[i].description);
+        }
+    }
+
+    if (partner->skills){
+        for (size_t i = 0; i < partner->numSkills; i++){
+            characterCounter += strlen(partner->skills[i].name);
+        }
+    }
+    
+    char * characterSheet = (char *) malloc(sizeof(char) * (FILE_SIZE + characterCounter));
     if(!characterSheet){
         exit(1);
     }
@@ -490,36 +546,37 @@ char * buildCharacterSheet(digimon partner){
         exit(1);
     }
     temp[0] = '\0';
-    size_t evasion = ((partner.dgmnAttributes.wits + partner.dgmnAttributes.grace) / 2 + partner.dgmnAttributes.witsBonus + partner.dgmnAttributes.graceBonus);
-    size_t toughness = ((partner.dgmnAttributes.brawn + partner.dgmnAttributes.heart) / 2 + partner.dgmnAttributes.brawnBonus + partner.dgmnAttributes.heartBonus);
-    sprintf(characterSheet, "Name:\t%s\n\n----------Attributes----------\nHeart: 2d%lu + %lu\nBrawn: 2d%lu + %lu\nWits: 2d%lu + %lu\nGrace: 2d%lu + %lu\n\n----------Defenses----------\n\nEvasion:\t%lu\nToughness\t%lu\n", 
-        partner.name, partner.dgmnAttributes.heart, partner.dgmnAttributes.heartBonus, partner.dgmnAttributes.brawn, partner.dgmnAttributes.brawnBonus, partner.dgmnAttributes.wits, partner.dgmnAttributes.witsBonus, partner.dgmnAttributes.grace, partner.dgmnAttributes.graceBonus, evasion, toughness);
-    if (isBuiltSpecial){
+    unsigned short half = 2;
+    unsigned short evasion = (unsigned short) ((partner->dgmnAttributes.wits + partner->dgmnAttributes.grace) / half + partner->dgmnAttributes.witsBonus + partner->dgmnAttributes.graceBonus);
+    unsigned short toughness = (unsigned short) ((partner->dgmnAttributes.brawn + partner->dgmnAttributes.heart) / half + partner->dgmnAttributes.brawnBonus + partner->dgmnAttributes.heartBonus);
+    sprintf(characterSheet, "Name:\t%s\n\n----------Attributes----------\nHeart: 2d%hd + %hd\nBrawn: 2d%hd + %hd\nWits: 2d%hd + %hd\nGrace: 2d%hd + %hd\n\n----------Defenses----------\n\nEvasion:\t%hd\nToughness\t%hd\n", 
+        partner->name, partner->dgmnAttributes.heart, partner->dgmnAttributes.heartBonus, partner->dgmnAttributes.brawn, partner->dgmnAttributes.brawnBonus, partner->dgmnAttributes.wits, partner->dgmnAttributes.witsBonus, partner->dgmnAttributes.grace, partner->dgmnAttributes.graceBonus, evasion, toughness);
+    if(partner->specialAttacks){
         strcat(characterSheet, "\n----------Special Attack(s)----------\n");
-        for (size_t i = 0; i < partner.numSpecialAttacks; i++){
-            sprintf(temp, "Name: %s\tAccuracy: 2d%d\tPower: 2d%d\nBonus(es):\t%s\nDrawback(s):\t%s\nDescription:\t%s\n", partner.special[i].name, partner.special[i].accuracy, partner.special[i].power, partner.special[i].bonuses, partner.special[i].drawbacks, partner.special[i].description);
+        for (unsigned short i = 0; i < partner->numSpecialAttacks; i++){
+            sprintf(temp, "Name: %s\tAccuracy: 2d%d\tPower: 2d%d\nBonus(es):\t%s\nDrawback(s):\t%s\nDescription:\t%s\n", partner->specialAttacks[i].name, partner->specialAttacks[i].accuracy, partner->specialAttacks[i].power, partner->specialAttacks[i].bonuses, partner->specialAttacks[i].drawbacks, partner->specialAttacks[i].description);
             strcat(characterSheet, temp);
         }
     }
-    if (isAssignedAbilities){
+    if(partner->abilities){
         strcat(characterSheet, "\n----------Abilities----------\n");
-        for (size_t i = 0; i < partner.numAbilities; i++){
-            sprintf(temp, "%s:\t%s\n", partner.dgmnAbilities[i].name, partner.dgmnAbilities[i].description);
+        for (unsigned short i = 0; i < partner->numAbilities; i++){
+            sprintf(temp, "%s:\t%s\n", partner->abilities[i].name, partner->abilities[i].description);
             strcat(characterSheet, temp);
         } 
     }
-    if  (isAssignedGear){
+    if(partner->dgmnGear){
         strcat(characterSheet, "\n----------Gear----------\n");
-        for (size_t i = 0; i < partner.numGear; i++){
-            sprintf(temp, "%s:\t%s\n", partner.dgmnGear[i].name, partner.dgmnGear[i].description);
+        for (unsigned short i = 0; i < partner->numGear; i++){
+            sprintf(temp, "%s:\t%s\n", partner->dgmnGear[i].name, partner->dgmnGear[i].description);
             strcat(characterSheet, temp);
         }
     }
 
-    if (isAssignedSkills){
+    if(partner->skills){
         strcat(characterSheet, "\n----------Skills----------\n");
-        for (size_t i = 0; i < partner.numSkills; i++){
-            sprintf(temp, "%s:\t%d\n", partner.dgmnSkills[i].name, partner.dgmnSkills[i].bonus);
+        for (unsigned short i = 0; i < partner->numSkills; i++){
+            sprintf(temp, "%s:\t%d\n", partner->skills[i].name, partner->skills[i].bonus);
             strcat(characterSheet, temp);
         }
     }
